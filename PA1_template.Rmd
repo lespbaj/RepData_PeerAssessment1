@@ -8,18 +8,106 @@ output:
 
 ## Loading and preprocessing the data
 
+```{r processing data,  echo = TRUE}
+## Unzip activity.zip and extract its content into datafiles forlder
+library(lubridate)
+unzip(zipfile = "activity.zip", exdir = "./datafiles")
+data <- as.data.frame (read.csv("./datafiles/activity.csv", header = TRUE))
+data$date <- ymd(data$date)
+```
+
+## Histogram of the total number of steps taken each day
+
+```{r sum of steps per day, ercho = TRUE}
+library(dplyr)
+library(xtable)
+stepsxday <- data [!is.na(data$steps),] %>% group_by( by = date) %>%  summarize (sum(steps, na.rm=TRUE))
+colnames(stepsxday)  <-  c("Day", "Steps")
+xt  <- xtable(head(stepsxday))
+print (xt, type="html")
+
+```
+
+```{r histogram, echo = TRUE}
+
+hist(stepsxday$Steps,  main="steps per day",  ylab="Frecuency",  xlab="Steps",  border="red", col="green", las=1,breaks=10, xlim = c(0, 25000))
+
+```
 
 
 ## What is mean total number of steps taken per day?
 
 
+```{r mean of steps per day, ercho = TRUE}
+
+summary(stepsxday$Steps)  
+
+```
+The mean is 10766 and de median is 10765 
 
 ## What is the average daily activity pattern?
 
+```{r average spteps per 5 minutes interval, echo = "TRUE"}
+stepsxinterval <- data [!is.na(data$steps),] %>% group_by( by = interval) %>%  summarize (mean(steps, na.rm=TRUE))
+colnames(stepsxinterval)  <-  c("Interval", "Steps")
+stepsxinterval 
 
+```
+```{r Time series plot of the average number of steps taken, echo= TRUE, fig.width=10}
+library(ggplot2)
+ggplot(data =stepsxinterval, aes(x=Interval, y= Steps)) + geom_line()
+```
+
+## The 5-minute interval that, on average, contains the maximum number of steps
+
+To identify the exact five minute slot with the higher average of steps I only have to order the results from the previous calculation
+
+```{r Identify the interval whit the gratest mean os steps, echo = TRUE}
+ head(stepsxinterval[order(-stepsxinterval$Steps),])
+```
+The 5-minute interval that, on average, contains the maximum number of steps is the 835
 
 ## Imputing missing values
 
+I will replace each NA five minutes intervals by its average
+
+```{r Imputing missing values, echo =TRUE}
+dataMod <- data
+dataMod$interval <-as.factor(dataMod$interval)
+dataMod$StepsMeanInt<- tapply(dataMod$steps, dataMod$interval, mean, na.rm = TRUE)
+dataMod <- mutate(dataMod, stepsMod = ifelse(is.na(dataMod$steps), dataMod$StepsMeanInt, dataMod$steps))
+```
+
+Next I will calculate the sum of steps by date using the new steps column with  imputed missing data
+
+```{r sum of steps per day (without missing values), ercho = TRUE}
+stepsxdayMod <- data [!is.na(data$steps),] %>% group_by( by = date) %>%  summarize (sum(steps, na.rm=TRUE))
+colnames(stepsxdayMod)  <-  c("Day", "Steps")
+xt  <- xtable(head(stepsxdayMod))
+print (xt, type="html")
+```
+
+```{r histogram without missing values, echo = TRUE}
+hist(stepsxdayMod$Steps,  main="steps per day (missing data as an average) ",  ylab="Frecuency",  xlab="Steps",  border="red", col="green", las=1,breaks=10, xlim = c(0, 25000))
+```
 
 
 ## Are there differences in activity patterns between weekdays and weekends?
+
+```{r weekday /weekend differentiation, echo = TRUE}
+dataMod <- mutate (dataMod[!is.na(dataMod$steps),  ], WeekPeriod  = ifelse(wday( date, week_start = 1)< 6 , "Weekday" , "Wekend") )
+dataMod <- select (dataMod, !4:5)
+head(dataMod)
+```
+```{r average spteps per 5 minutes intervaland day of the week, echo = "TRUE"}
+dataMod$WeekPeriod <- as.factor (dataMod$WeekPeriod )
+IntW  <- dataMod %>% group_by( interval, WeekPeriod )%>% summarise(Ninter = mean(steps))
+head(IntW)
+```
+```{r Time series plot of the average number of steps taken by weekday and weekend, echo= TRUE, fig.width= 10}
+g <- ggplot (data = IntW, aes(x= IntW$interval, y = IntW$Ninter))
+g  + geom_point () + geom_line (aes( group=1))+ facet_grid(~ WeekPeriod) + 
+  xlab("5 minute interval") +  ylab ("Average of steps")
+
+```
+During weekdays, a lot of walking is at the beginning of the day and during the weekends is more spread during the day.
